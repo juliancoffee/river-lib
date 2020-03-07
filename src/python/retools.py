@@ -1,7 +1,6 @@
 """Custom functions for regular expressions
 """
 import re
-from re import Pattern
 from typing import Union, List
 from tag import Tag
 
@@ -17,8 +16,12 @@ class Text(Tag):
 Token = Union[Delim, Text]
 
 
-def fullsplit(pattern: Union[str, Pattern], text: str) -> List[Token]:
-    """Split given string by pattern and return both delimetrs and text between them
+def fullsplit_tagged(
+        pattern: Union[str, re.Pattern],
+        text: str
+) -> List[Token]:
+    """Split given string by pattern and return both delimetrs and text between
+    them
     Example:
     fullsplit("[ab]", abcda) -> [
                                 Delim("a"),
@@ -28,7 +31,7 @@ def fullsplit(pattern: Union[str, Pattern], text: str) -> List[Token]:
                                 ]
     Accept compiled regular expression or str as a pattern and str to split
     """
-    res = []
+    res: List[Token] = []
     buff = ""
     while text:
         got = re.match(pattern, text)
@@ -44,3 +47,11 @@ def fullsplit(pattern: Union[str, Pattern], text: str) -> List[Token]:
             text = text[1:]
 
     return res
+
+
+def fullsplit(
+    pattern: Union[str, re.Pattern],
+    text: str
+) -> List[str]:
+    return list(
+        map(lambda token: token.content, fullsplit_tagged(pattern, text)))

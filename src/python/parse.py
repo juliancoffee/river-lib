@@ -20,7 +20,7 @@ def get_content(src: List[str]):
     """
     content = filter(
         lambda token:
-            not (re.match(r"[\s]", token.content)), src)
+            not (re.match(r"[\s]", token)), src)
     return list(content)
 
 
@@ -29,14 +29,18 @@ def parse_attrset(src: List[str]):
     cursor = 0
     for c, token in enumerate(src[1:-1]):
         if token == ";":
-            assignments.append(src[cursor:c])
-            cursor = c
-    return assignments
+            assignments.append(src[cursor+1:c+1])
+            cursor = c+1
+    return list(map(parse_assignment, assignments))
 
 
 def parse_assignment(src: List[str]):
-    return (Name(src[0].content), parse_expr(src[2:]))
+    return (Name(src[0]), parse_expr(src[2:]))
 
 
 def parse_expr(src: List[str]):
-    return Int(int("".join(src)))
+    return parse_int(src[0])
+
+
+def parse_int(src: str):
+    return Int(int(src))

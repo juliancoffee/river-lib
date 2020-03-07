@@ -3,6 +3,7 @@
 from typing import Any
 from dataclasses import dataclass
 
+
 @dataclass
 class Tag():
     """Tagged placeholder
