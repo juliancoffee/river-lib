@@ -1,7 +1,7 @@
 """Custom functions for regular expressions
 """
 import re
-from typing import Union, List
+from typing import Union, List, Pattern
 from tag import Tag
 
 
@@ -17,7 +17,7 @@ Token = Union[Delim, Text]
 
 
 def fullsplit_tagged(
-        pattern: Union[str, re.Pattern],
+        pattern: Union[str, Pattern],
         text: str
 ) -> List[Token]:
     """Split given string by pattern and return both delimetrs and text between
@@ -50,7 +50,7 @@ def fullsplit_tagged(
 
 
 def fullsplit(
-    pattern: Union[str, re.Pattern],
+    pattern: Union[str, Pattern],
     text: str
 ) -> List[str]:
     return list(

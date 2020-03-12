@@ -1,4 +1,0 @@
-type Expr = Int
-    | AttrSet
-;;
-
