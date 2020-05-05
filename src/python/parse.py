@@ -20,15 +20,21 @@ import functools
 # Expr,
 # )
 
-DEBUG = True
+DEBUG = False
 
 
 def trace(func):
     @functools.wraps(func)
     def inner(*args, **kwargs):
-        res = func(*args, **kwargs)
         if DEBUG is True:
-            print(f"\nDEBUG before {func.__name__}\n", args, kwargs or "")
+            print(
+                f"\nDEBUG before {func.__name__}\n{args=}",
+                kwargs or "",
+            )
+
+        res = func(*args, **kwargs)
+
+        if DEBUG is True:
             print(f"\nDEBUG result {func.__name__}\n", res)
         return res
     return inner
@@ -171,7 +177,7 @@ def separator(start: Delimeter) -> Delimeter:
 @trace
 def partition(
         parts: Sequence[Part], sep: Delimeter
-) -> Sequence[Sequence[Part]]:
+) -> Sequence[List[Part]]:
     res = []
     buff = []
     for part in parts:
@@ -220,19 +226,25 @@ def group_parts(content, start: Delimeter) -> TokenTree:
     res = []
     buff: List[Part] = []
     tmp_token = ""
+    opposite_index = -1
     state = "WALK"
     parts_chunks = partition(content, separator(start))
     for parts in parts_chunks:
+        if DEBUG is True:
+            print(f"\nPARTS {parts=}, {state=}, {tmp_token=}\n")
+        if state == "SEARCH":
+            opposite_index = find_index(parts, opposite(Delimeter(tmp_token)))
+        tmp_token = find_paired(parts)
         if state == "WALK" and not isinstance(parts[0], Delimeter):
             res.append(groups(parts))
-        elif parts[0].value in PAIRED_TOKENS:
+        elif tmp_token != "":
             state = "SEARCH"
-            tmp_token = parts[0].value
             buff += parts
-        elif parts[-1] == opposite(Delimeter(tmp_token)):
-            buff += parts
+        elif opposite_index != -1:
+            buff += parts[:opposite_index + 1]
             res.append(groups(buff))
-            buff = []
+            buff = parts[opposite_index + 1:]
+            state = "WALK"
         elif not isinstance(parts[0], Delimeter):
             res.append(groups(parts))
     if start.value == "[":
@@ -245,71 +257,16 @@ def group_parts(content, start: Delimeter) -> TokenTree:
         raise ParseError(f"Unexpected start delimeter {start}")
 
 
-'''
-def parse_attrset(src: SetGroup) -> Table:
-    assignments = []
-    cursor = 0
-    layer_counter = 0
-    for c, token in enumerate(src[1:-1]):
-        if token == "=":
-            layer_counter += 1
-        if token == ";":
-            layer_counter -= 1
-            if layer_counter == 0:
-                assignments.append(src[cursor+1:c+1])
-                cursor = c+1
-    return Table(
-        {k: v for k, v in map(parse_assignment, assignments)}
-    )
+def find_paired(parts: List[Part]) -> str:
+    for part in parts:
+        if part.value in PAIRED_TOKENS:
+            return part.value
+    return ""
 
 
-def parse_assignment(src: Assignment) -> Tuple[Name, Expr]:
-    return (src.name, parse_expr(src.value))
-
-
-def parse_int(src: Token) -> Atom:
-    return Int(int(src))
-
-
-def parse_src(src: Token) -> Atom:
-    return Str(src)
-
-
-def parse_list(src: TokenTree) -> Line:
-    elements = []
-    cursor = 0
-    layer_counter = 0
-    for c, token in enumerate(src[1:-1]):
-        if token == "[":
-            layer_counter += 1
-        if token == "]":
-            layer_counter -= 1
-        if token == "," and layer_counter == 0:
-            elements.append(src[cursor+1:c+1])
-            cursor = c+1
-    else:
-        if layer_counter == 0:
-            elements.append(src[cursor+1:])
-
-    return Line(
-        (e for e in map(parse_expr, elements))
-    )
-
-
-def parse_lambda(src: TokenTree) -> Lambda:
-    pass
-
-
-def parse_expr(src: TokenTree) -> Expr:
-    if src[0] == "{":
-        return parse_attrset(src)
-    if src[0] == "[":
-        return parse_list(src)
-    if detect_expr(src) == "lambda":
-        return parse_lambda(src)
-    return parse_int(src[0])
-
-
-def detect_expr(src: Sequence[Token]) -> str:
-    pass
-'''
+@trace
+def find_index(parts: List[Part], delim: Delimeter) -> int:
+    for i, part in enumerate(parts):
+        if part == delim:
+            return i
+    return -1

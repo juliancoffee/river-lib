@@ -26,9 +26,10 @@ def test_file(src_file):
 
 
 def main():
-    # tests()
-
+    tests()
     test_file("setOfSet.riv")
+    # test_file("listOfInt.riv")
+    # test_file("listOfSetOfList.riv")
 
 
 if __name__ == "__main__":
