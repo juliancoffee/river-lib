@@ -2,3 +2,4 @@
 **/.mypy_cache/**/*
 **/.pytype/**/*
 **/.python-version
+**/venv/**/*

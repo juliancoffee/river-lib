@@ -2,11 +2,12 @@
 Utilities for parsing river expressions
 """
 
-from typing import Sequence, Union, Pattern, List
-from dataclasses import dataclass
-
 import re
 import functools
+import os
+
+from typing import Sequence, Union, Pattern, List, Optional
+from dataclasses import dataclass
 
 
 # from objects import (
@@ -20,7 +21,7 @@ import functools
 # Expr,
 # )
 
-DEBUG = False
+DEBUG = os.getenv("RIVER_DEBUG") == "1"
 
 
 def trace(func):
@@ -64,35 +65,38 @@ class Text(Tagged):
 Part = Union[Delimeter, Text]
 
 
+@trace
 def fullsplit(
         pattern: Pattern,
         text: str
 ) -> Sequence[Part]:
-    """Split given string by pattern and return both delimetrs and text between
-    them
+    """Split given string by pattern and return both delimetrs and text around them
     Example:
-    fullsplit("[ab]", abcda) -> [
+    fullsplit("[ab]", abcdac) -> [
                                 Delim("a"),
                                 Delim("b"),
                                 Text("cd"),
                                 Delim("a"),
+                                Text("c"),
                                 ]
     """
     res: List[Part] = []
     buff = ""
-    while text:
-        got = re.match(pattern, text)
-        if got:
-            delim = got.group()
-            if buff:
+    while text != "":
+        matched_delimeter = re.match(pattern, text)
+        if matched_delimeter is not None:
+            delim = matched_delimeter.group()
+            if buff != "":
                 res.append(Text(buff))
                 buff = ""
             res.append(Delimeter(delim))
             text = text[len(delim):]
-        else:
-            buff += text[0]
-            text = text[1:]
+            continue
 
+        buff += text[0]
+        text = text[1:]
+    if buff != "":
+        res.append(Text(buff))
     return res
 
 
@@ -132,7 +136,8 @@ Token = str
 TokenTree = Union[Token, Group]
 
 
-PAIRED_TOKENS = {"{", "[", "("}
+OPENED_TOKENS = {"{", "[", "("}
+CLOSED_TOKENS = {"}", "]", ")"}
 
 
 def tokenize(src: str) -> TokenTree:
@@ -145,16 +150,17 @@ def tokenize(src: str) -> TokenTree:
 def clean(src: Sequence[Part]) -> Sequence[Part]:
     """ Remove noise from source """
     noise_pattern = re.compile(r"[\s]")
-    content = filter(
-        lambda token:
-            not (re.match(noise_pattern, token.value)),
-        src)
+
+    def not_noise(token):
+        return not (re.match(noise_pattern, token.value))
+
+    content = filter(not_noise, src)
     return list(content)
 
 
 def opposite(start: Delimeter) -> Delimeter:
     delim = start.value
-    if delim not in PAIRED_TOKENS:
+    if delim not in OPENED_TOKENS:
         raise ParseError(f"Unexpected delim {start}")
     if delim == "{":
         end = "}"
@@ -202,14 +208,13 @@ def groups(src: Sequence[Part]) -> TokenTree:
     start = src[0]
     end = src[-1]
 
-    if isinstance(start, Delimeter) and start.value in PAIRED_TOKENS:
-        if end != opposite(start):
-            raise ParseError(
-                f"Expected '{opposite(start)}',"
-                f"but got {end.value}"
-            )
-        else:
-            return group_parts(content, start)
+    if isinstance(start, Delimeter) and start.value in OPENED_TOKENS:
+        # if end != opposite(start):
+        #    raise ParseError(
+        #        f"Expected '{opposite(start)}',"
+        #        f"but got {end.value}"
+        #    )
+        return group_parts(content, start)
     else:
         if src[1].value == "=":
             return Assignment(start.value, groups(src[2:-1]))
@@ -223,30 +228,48 @@ def groups(src: Sequence[Part]) -> TokenTree:
 
 @trace
 def group_parts(content, start: Delimeter) -> TokenTree:
-    res = []
+    res: List[TokenTree] = []
     buff: List[Part] = []
-    tmp_token = ""
-    opposite_index = -1
+    waited_token = None
     state = "WALK"
     parts_chunks = partition(content, separator(start))
     for parts in parts_chunks:
         if DEBUG is True:
-            print(f"\nPARTS {parts=}, {state=}, {tmp_token=}\n")
-        if state == "SEARCH":
-            opposite_index = find_index(parts, opposite(Delimeter(tmp_token)))
-        tmp_token = find_paired(parts)
-        if state == "WALK" and not isinstance(parts[0], Delimeter):
+            print(
+                f"""\nPARTS
+                {res=},
+                {buff=},
+                {parts=},
+                {state=},
+                {waited_token=}\n
+                """)
+
+        unpaired = unmeeted(parts)
+        if state == "WALK" and unpaired is None:
             res.append(groups(parts))
-        elif tmp_token != "":
-            state = "SEARCH"
+            continue
+
+        if state == "WALK" and unpaired is not None:
+            if DEBUG:
+                print("SEARCHING")
             buff += parts
-        elif opposite_index != -1:
-            buff += parts[:opposite_index + 1]
+            state = "SEARCH"
+            waited_token = unpaired
+            continue
+
+        close_index = find_index(parts, waited_token)
+        if state == "SEARCH" and close_index is not None:
+            buff += parts
             res.append(groups(buff))
-            buff = parts[opposite_index + 1:]
+            buff = []
             state = "WALK"
-        elif not isinstance(parts[0], Delimeter):
-            res.append(groups(parts))
+            if DEBUG:
+                print("FOUND")
+            continue
+
+        if state == "SEARCH" and close_index is None:
+            buff += parts
+
     if start.value == "[":
         return SequenceGroup(res)
     elif start.value == "{":
@@ -257,16 +280,32 @@ def group_parts(content, start: Delimeter) -> TokenTree:
         raise ParseError(f"Unexpected start delimeter {start}")
 
 
-def find_paired(parts: List[Part]) -> str:
+@trace
+def unmeeted(parts: List[Part]) -> Optional[Delimeter]:
+    waited_token = None
+    state = "WALK"
     for part in parts:
-        if part.value in PAIRED_TOKENS:
-            return part.value
-    return ""
+        if state == "WALK" and part.value in OPENED_TOKENS:
+            if isinstance(part, Delimeter):
+                waited_token = opposite(part)
+                state = "SEACH"
+                continue
+            else:
+                raise ParseError(
+                    f"Expected delimeter, got {part},"
+                    "which is not Delimeter"
+                )
+        elif state == "SEACH" and part.value in CLOSED_TOKENS:
+            if part == waited_token:
+                waited_token = None
+                state = "WALK"
+                continue
+    return waited_token
 
 
 @trace
-def find_index(parts: List[Part], delim: Delimeter) -> int:
+def find_index(parts: List[Part], delim: Delimeter) -> Optional[int]:
     for i, part in enumerate(parts):
         if part == delim:
             return i
-    return -1
+    return None
