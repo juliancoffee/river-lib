@@ -6,7 +6,7 @@ import re
 import functools
 import os
 
-from typing import Sequence, Union, Pattern, List, Optional
+from typing import Sequence, Union, List, Optional, Iterator
 from dataclasses import dataclass
 
 
@@ -62,42 +62,21 @@ class Text(Tagged):
     pass
 
 
-Part = Union[Delimeter, Text]
+Token = Union[Delimeter, Text]
 
 
 @trace
-def fullsplit(
-        pattern: Pattern,
-        text: str
-) -> Sequence[Part]:
-    """Split given string by pattern and return both delimetrs and text around them
+def fullsplit(pattern: str, text: str) -> Iterator[str]:
+    """Split given string by pattern and return
+    iterator that yields both delimetrs and text around them
     Example:
-    fullsplit("[ab]", abcdac) -> [
-                                Delim("a"),
-                                Delim("b"),
-                                Text("cd"),
-                                Delim("a"),
-                                Text("c"),
-                                ]
+    >>> list(fullsplit("[ab]", "abcdac"))
+    ["a","b","cd","a","c"]
     """
-    res: List[Part] = []
-    buff = ""
-    while text != "":
-        matched_delimeter = re.match(pattern, text)
-        if matched_delimeter is not None:
-            delim = matched_delimeter.group()
-            if buff != "":
-                res.append(Text(buff))
-                buff = ""
-            res.append(Delimeter(delim))
-            text = text[len(delim):]
-            continue
 
-        buff += text[0]
-        text = text[1:]
-    if buff != "":
-        res.append(Text(buff))
-    return res
+    pattern = f"({pattern})"
+    partition = re.split(pattern, text)
+    return filter(lambda s: s != '', partition)
 
 
 class ParseError(Exception):
@@ -132,7 +111,6 @@ class Assignment:
 
 
 Group = Union[Parentheses, LambdaLeaf, Assignment, SetGroup, SequenceGroup]
-Token = str
 TokenTree = Union[Token, Group]
 
 
@@ -142,12 +120,29 @@ CLOSED_TOKENS = {"}", "]", ")"}
 
 def tokenize(src: str) -> TokenTree:
     """ Split text string to tokens """
-    pattern = re.compile(r"[}{;\s\][,:]")
-    tokens = clean(fullsplit(pattern, src))
-    return groups(tokens)
+    patterns = [
+        "}",
+        "{",
+        r"\s",
+        r"\[",
+        r"\]"
+        ";",
+        ",",
+        "=",
+        ":",
+    ]
+    pattern = f"[{''.join(patterns)}]"
+    partition = fullsplit(pattern, src)
+    tokens: List[Token] = []
+    for token in partition:
+        if re.match(pattern, token) is not None:
+            tokens.append(Delimeter(token))
+        else:
+            tokens.append(Text(token))
+    return groups(clean(tokens))
 
 
-def clean(src: Sequence[Part]) -> Sequence[Part]:
+def clean(src: Sequence[Token]) -> Sequence[Token]:
     """ Remove noise from source """
     noise_pattern = re.compile(r"[\s]")
 
@@ -182,8 +177,8 @@ def separator(start: Delimeter) -> Delimeter:
 
 @trace
 def partition(
-        parts: Sequence[Part], sep: Delimeter
-) -> Sequence[List[Part]]:
+        parts: Sequence[Token], sep: Delimeter
+) -> Sequence[List[Token]]:
     res = []
     buff = []
     for part in parts:
@@ -198,22 +193,16 @@ def partition(
 
 
 @trace
-def groups(src: Sequence[Part]) -> TokenTree:
+def groups(src: Sequence[Token]) -> TokenTree:
     if len(src) == 0:
         raise ParseError("Empty source")
     if len(src) == 1:
-        return src[0].value
+        return src[0]
 
     content = src[1:-1]
     start = src[0]
-    end = src[-1]
 
     if isinstance(start, Delimeter) and start.value in OPENED_TOKENS:
-        # if end != opposite(start):
-        #    raise ParseError(
-        #        f"Expected '{opposite(start)}',"
-        #        f"but got {end.value}"
-        #    )
         return group_parts(content, start)
     else:
         if src[1].value == "=":
@@ -229,7 +218,7 @@ def groups(src: Sequence[Part]) -> TokenTree:
 @trace
 def group_parts(content, start: Delimeter) -> TokenTree:
     res: List[TokenTree] = []
-    buff: List[Part] = []
+    buff: List[Token] = []
     waited_token = None
     state = "WALK"
     parts_chunks = partition(content, separator(start))
@@ -281,7 +270,7 @@ def group_parts(content, start: Delimeter) -> TokenTree:
 
 
 @trace
-def unmeeted(parts: List[Part]) -> Optional[Delimeter]:
+def unmeeted(parts: List[Token]) -> Optional[Delimeter]:
     waited_token = None
     state = "WALK"
     for part in parts:
@@ -304,7 +293,7 @@ def unmeeted(parts: List[Part]) -> Optional[Delimeter]:
 
 
 @trace
-def find_index(parts: List[Part], delim: Delimeter) -> Optional[int]:
+def find_index(parts: List[Token], delim: Delimeter) -> Optional[int]:
     for i, part in enumerate(parts):
         if part == delim:
             return i

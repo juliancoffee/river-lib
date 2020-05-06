@@ -4,17 +4,18 @@ from river.parser.parse import (
     SequenceGroup,
     SetGroup,
     Assignment,
+    Text,
 )
 
 
 class TestLambda:
     def test_id(self):
-        assert tokenize("x: x") == LambdaLeaf('x', 'x')
+        assert tokenize("x: x") == LambdaLeaf('x', Text('x'))
 
 
 class TestLine:
     def test_plain(self):
-        assert tokenize("[4, 5]") == SequenceGroup(['4', '5'])
+        assert tokenize("[4, 5]") == SequenceGroup([Text('4'), Text('5')])
 
     def test_one_set_with_line(self):
         src = """
@@ -29,8 +30,8 @@ class TestLine:
             [
                 SetGroup(
                     [
-                        Assignment('x', '5'),
-                        Assignment('y', SequenceGroup(['4', '5']))
+                        Assignment('x', Text('5')),
+                        Assignment('y', SequenceGroup([Text('4'), Text('5')]))
                     ]
                 )
             ]
@@ -48,8 +49,8 @@ class TestTable:
         """
         expected = SetGroup(
             [
-                Assignment('a', '5'),
-                Assignment('b', '6'),
+                Assignment('a', Text('5')),
+                Assignment('b', Text('6')),
             ]
         )
         assert tokenize(src) == expected
@@ -70,11 +71,11 @@ class TestTable:
         expected = SetGroup(
             [
                 Assignment('a', SetGroup([
-                    Assignment('x', '5'),
-                    Assignment('y', '6'), ])
+                    Assignment('x', Text('5')),
+                    Assignment('y', Text('6')), ])
                 ),
                 Assignment('b', SetGroup([
-                    Assignment('z', '7'),
-                    Assignment('t', '8'), ]))
+                    Assignment('z', Text('7')),
+                    Assignment('t', Text('8')), ]))
             ])
         assert tokenize(src) == expected
