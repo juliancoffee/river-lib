@@ -1,21 +1,25 @@
-from river.parser.parse import (
-    tokenize,
+from river.parser.parse import token_tree
+
+from river.parser.groups import (
     LambdaLeaf,
     SequenceGroup,
     SetGroup,
     Assignment,
-    Text,
 )
+
+from river.parser.tokenize import Text
+
+# TODO: Add more unit tests on grouping, group_parts, and so on
 
 
 class TestLambda:
     def test_id(self):
-        assert tokenize("x: x") == LambdaLeaf('x', Text('x'))
+        assert token_tree("x: x") == LambdaLeaf('x', Text('x'))
 
 
 class TestLine:
     def test_plain(self):
-        assert tokenize("[4, 5]") == SequenceGroup([Text('4'), Text('5')])
+        assert token_tree("[4, 5]") == SequenceGroup([Text('4'), Text('5')])
 
     def test_one_set_with_line(self):
         src = """
@@ -36,7 +40,7 @@ class TestLine:
                 )
             ]
         )
-        assert tokenize(src) == expected
+        assert token_tree(src) == expected
 
 
 class TestTable:
@@ -53,7 +57,7 @@ class TestTable:
                 Assignment('b', Text('6')),
             ]
         )
-        assert tokenize(src) == expected
+        assert token_tree(src) == expected
 
     def test_with_sets(self):
         src = """
@@ -78,4 +82,4 @@ class TestTable:
                     Assignment('z', Text('7')),
                     Assignment('t', Text('8')), ]))
             ])
-        assert tokenize(src) == expected
+        assert token_tree(src) == expected

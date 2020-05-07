@@ -1,7 +1,12 @@
 #!/usr/bin/env sh
 
-pytest -v
+python -m pytest -v
 
 echo ""
 echo "========================MYPY======================"
-mypy river
+mypy river --warn-return-any --warn-unreachable
+
+echo ""
+echo "========================TODO======================="
+grep --color=auto -r "TODO" river
+grep --color=auto -r "TODO" tests
