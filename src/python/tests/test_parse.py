@@ -1,4 +1,4 @@
-from river.parser.parse import token_tree
+from river.parser.parse import lexer
 
 from river.parser.groups import (
     LambdaLeaf,
@@ -14,12 +14,12 @@ from river.parser.tokenize import Text
 
 class TestLambda:
     def test_id(self):
-        assert token_tree("x: x") == LambdaLeaf('x', Text('x'))
+        assert lexer("x: x") == LambdaLeaf('x', Text('x'))
 
 
 class TestLine:
     def test_plain(self):
-        assert token_tree("[4, 5]") == SequenceGroup([Text('4'), Text('5')])
+        assert lexer("[4, 5]") == SequenceGroup([Text('4'), Text('5')])
 
     def test_one_set_with_line(self):
         src = """
@@ -40,7 +40,7 @@ class TestLine:
                 )
             ]
         )
-        assert token_tree(src) == expected
+        assert lexer(src) == expected
 
 
 class TestTable:
@@ -57,7 +57,7 @@ class TestTable:
                 Assignment('b', Text('6')),
             ]
         )
-        assert token_tree(src) == expected
+        assert lexer(src) == expected
 
     def test_with_sets(self):
         src = """
@@ -82,4 +82,4 @@ class TestTable:
                     Assignment('z', Text('7')),
                     Assignment('t', Text('8')), ]))
             ])
-        assert token_tree(src) == expected
+        assert lexer(src) == expected

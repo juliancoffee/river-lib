@@ -24,6 +24,6 @@ from .trace import trace
 # TODO: add analytic info about line and position
 
 @trace
-def token_tree(src: str) -> TokenTree:
+def lexer(src: str) -> TokenTree:
     tokens = tokenize(src)
     return grouping(tokens)
