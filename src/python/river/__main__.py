@@ -1,12 +1,12 @@
 import sys
 
-from river.parser.parse import token_tree
+from river.parser.parse import lexer
 from os import PathLike
 
 
 def tokenize_file(src_file: PathLike):
     with open(src_file) as src:
-        return token_tree(src.read().strip())
+        return lexer(src.read().strip())
 
 
 def run_and_show(filename):

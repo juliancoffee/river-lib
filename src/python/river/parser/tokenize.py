@@ -1,7 +1,6 @@
 import re
-import itertools
 
-from typing import Sequence, List, Union
+from typing import Sequence, List, Union, Optional
 from dataclasses import dataclass
 
 from .split import fullsplit
@@ -33,7 +32,7 @@ class TokenLike:
             return self
         else:
             raise TokenizeError(
-                f"Expected delimeter, got {self},"
+                f"Expected delimeter, got {self}, "
                 "which is not Delimeter"
             )
 
@@ -43,7 +42,7 @@ class TokenLike:
 
 
 class Delimiter(TokenLike):
-    line: int
+    line: Optional[int] = None
 
     def opposite(self) -> 'Delimiter':
         delim = self.value
@@ -65,7 +64,7 @@ class Delimiter(TokenLike):
 
 
 class Text(TokenLike):
-    line: int
+    line: Optional[int] = None
 
 
 Token = Union[Delimiter, Text]
@@ -90,11 +89,12 @@ def tokenize(src: str) -> Sequence[Token]:
         partition.append(fullsplit(delimiters, line))
 
     tokens: List[Token] = []
-    for token in itertools.chain(*partition):
-        if re.match(delimiters, token) is not None:
-            tokens.append(Delimiter(token))
-        else:
-            tokens.append(Text(token))
+    for row in partition:
+        for token in row:
+            if re.match(delimiters, token) is not None:
+                tokens.append(Delimiter(token))
+            else:
+                tokens.append(Text(token))
     return clean(tokens)
 
 

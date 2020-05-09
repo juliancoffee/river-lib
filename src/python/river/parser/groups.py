@@ -1,5 +1,13 @@
 from dataclasses import dataclass
-from typing import Union, Sequence, List, Optional
+from typing import (
+    Union,
+    Sequence,
+    List,
+    Optional,
+    Tuple,
+    TypedDict,
+    Literal,
+)
 
 from .tokenize import Token, Delimiter, TokenizeError
 from .trace import trace, debug
@@ -77,7 +85,9 @@ def part_groups(part_chunks: Sequence[List[Token]]) -> List[List[Token]]:
     res: List[List[Token]] = []
     buff: List[Token] = []
     waited_token = None
+    depth = 0
     state = "WALK"
+
     for parts in part_chunks:
         debug(
             f"""\nPARTS
@@ -88,7 +98,9 @@ def part_groups(part_chunks: Sequence[List[Token]]) -> List[List[Token]]:
             {waited_token=}\n
             """)
 
-        unpaired = unmeeted(parts)
+        if state == "WALK":
+            unpaired = unclosed(parts)
+
         if state == "WALK" and unpaired is None:
             res.append(parts)
             continue
@@ -96,16 +108,20 @@ def part_groups(part_chunks: Sequence[List[Token]]) -> List[List[Token]]:
         if state == "WALK" and unpaired is not None:
             debug("SEARCHING")
             buff += parts
+
             state = "SEARCH"
-            waited_token = unpaired
+            waited_token = unpaired["token"]
+            depth = unpaired["depth"]
             continue
 
         if state == "SEARCH" and waited_token in parts:
+            depth -= 1
             buff += parts
-            res.append(buff)
-            buff = []
-            state = "WALK"
-            debug("FOUND")
+            if depth == 0:
+                res.append(buff)
+                buff = []
+                state = "WALK"
+                debug("FOUND")
             continue
 
         if state == "SEARCH" and waited_token not in parts:
@@ -139,19 +155,42 @@ def partition(
     return res
 
 
+class nested(TypedDict):
+    token: Token
+    depth: int
+
+
 @trace
-def unmeeted(parts: List[Token]) -> Optional[Delimiter]:
+def unclosed(parts: List[Token]) -> Optional[nested]:
     waited_token = None
-    state = "WALK"
+    opened_token = None
+    depth = 0
+    state: Literal["WALK", "SEARCH"] = "WALK"
+
     for part in parts:
         if isinstance(part, Delimiter):
             if state == "WALK" and part.is_oppening():
+                depth += 1
+                opened_token = part
                 waited_token = part.opposite()
-                state = "SEACH"
+                state = "SEARCH"
                 continue
-            elif state == "SEACH" and part.is_closing():
-                if part == waited_token:
+
+            if state == "SEARCH" and part == opened_token:
+                depth += 1
+                continue
+
+            if state == "SEARCH" and part == waited_token:
+                depth -= 1
+                if depth == 0:
                     waited_token = None
                     state = "WALK"
-                    continue
-    return waited_token
+                continue
+
+    if waited_token is None:
+        return None
+    else:
+        return {
+            "token": waited_token,
+            "depth": depth
+        }

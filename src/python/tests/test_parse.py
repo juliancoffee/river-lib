@@ -83,3 +83,24 @@ class TestTable:
                     Assignment('t', Text('8')), ]))
             ])
         assert lexer(src) == expected
+
+    def test_with_two_nested_lists(self):
+        src = """
+        {
+            a = 5;
+            b = [6, {a = [5];}];
+        }
+        """
+        expected = SetGroup(
+            [
+                Assignment('a', Text('5')),
+                Assignment('b', SequenceGroup([
+                    Text('6'),
+                    SetGroup([
+                        Assignment('a', SequenceGroup([
+                            Text('5')
+                        ]))
+                    ])
+                ]))
+            ])
+        assert lexer(src) == expected
